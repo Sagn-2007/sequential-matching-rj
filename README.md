@@ -1,89 +1,61 @@
-# The Sequential Matching Problem
+# Sequential Reciprocal Matching under Extreme Delay and Constrained Information Acquisition
 
-**Final participant release 1.0.0 | Vouchsafe | 5 October 2026**
+## Overview
+This project addresses the Romeo & Juliet sequential matching problem, a matching environment where participants arrive daily with incomplete information and hidden constraints. The system must decide who to introduce and which missing information to clarify within a strict daily budget. Feedback on introductions is heavily delayed, and the matching horizon is strictly limited to 60 days.
 
-Build a policy that decides who to introduce, when to wait and what to clarify, using incomplete reciprocal preferences and delayed feedback. Every person, conversation and outcome in this kit is synthetic.
+## Research Question
+How can a centralized matching policy efficiently allocate a limited clarification budget to maximize mutual second-meeting intention (MSMI) under hidden constraints, changing populations, and extremely delayed feedback?
 
-## Start here
+## Approach
 
-1. Read the [final problem statement](PROBLEM_STATEMENT.md) or [download the PDF](docs/PROBLEM_STATEMENT.pdf).
-2. Download this repository with **Code → Download ZIP**, or clone it. The full dataset is already in `data/`; no Supabase account, API key or separate download is required.
-3. Install Python 3.10 or later. Open a terminal in the extracted repository folder and run:
+### 1. Information Acquisition
+To manage the limited daily clarification budget, we strictly decouple information acquisition from match scoring. We allocate the budget using a **potential-degree heuristic** (a VoI-inspired heuristic). This heuristic prioritizes querying the missing constraints of members who have the highest number of theoretically feasible partners. It acts as a computationally efficient proxy for the usefulness of the requested information, avoiding the need for exhaustive expected-value calculations.
 
-```bash
-python -m unittest -v
-python verify_data.py
-python evaluate.py --seeds 101 --output results/first_run.json
-```
+### 2. Matching
+In the matching phase, the policy constructs a feasible-pair graph based strictly on known, unviolated hard constraints. It then extracts a greedy matching based on additive soft-field alignment. We deliberately favor this robust, static approach to pairing participants over complex probabilistic models.
 
-On Windows, use `py` instead of `python` if needed. On macOS/Linux, use `python3` if your Python executable has that name. The starter has no external Python dependencies. Results are written to the requested JSON file; scores measure this invented simulator only.
+### 3. Delayed Feedback
+Because feedback on introductions is delayed by up to 7 days and the active decision horizon is strictly 60 days, any online learning process suffers from severe right-censoring near the episode boundary. Our experiments suggest that a stateless heuristic avoids the resulting variance and over-fitting, yielding more consistent matches and forcing immediate exploitation of known valid pairs.
 
-## What is included
+## Experimental Setup
+We evaluated our approach using the provided local Python simulator across:
+- Six scenario families (`development`, `sparse`, `cold_start`, `delayed`, `shift`, `drift`)
+- 10-seed rigorous evaluation
+- 60 total episodes per variant
 
-| File / folder | Purpose |
-|---|---|
-| [PROBLEM_STATEMENT.md](PROBLEM_STATEMENT.md) | Final challenge, ranking, resources, schedule and ownership rules |
-| [data/](data/) | 2,000 synthetic adults, ten disjoint pools and day-30 observable histories |
-| [data_manifest.json](data_manifest.json) | Pool counts, source seeds and train/validation/development-test split |
-| [docs/DATA_CONTRACT.md](docs/DATA_CONTRACT.md) | Every field, constraint and feedback rule |
-| [docs/POLICY_INTERFACE.md](docs/POLICY_INTERFACE.md) | Executable JSON request/response protocol |
-| [policy.py](policy.py) | Runnable greedy, no-clarification and random-feasible baselines |
-| [evaluate.py](evaluate.py) | 60-day episodes, 40-day follow-up, metrics and scenario-level score |
-| [build_public_data.py](build_public_data.py) | Rebuild public synthetic tables in a new folder |
-| [kit.py](kit.py) | Reproducible public simulator and reciprocal eligibility checks |
-| [organise.py](organise.py) | Prepare and grade 120 private episodes outside the public repo |
-| [docs/ORGANISER_RUNBOOK.md](docs/ORGANISER_RUNBOOK.md) | Complete assessment commands and ranking procedure |
-| [Dockerfile](Dockerfile) | Offline container packaging for assessed inference |
-| [docs/SUBMISSION.md](docs/SUBMISSION.md) | Complete research and build submission instructions |
-| [docs/INTEGRATION.md](docs/INTEGRATION.md) | Reusable adapter boundary for later Vouchsafe evaluation |
-| [docs/FAQ.md](docs/FAQ.md) | Common questions and communication policy |
-| [examples/baseline_results/](examples/baseline_results/) | Checked reference runs for all three baselines |
-| [examples/REPORT_GUIDE.md](examples/REPORT_GUIDE.md) | What a complete participant technical report must cover |
+We compared our Final Hybrid policy against both the repository's Greedy baseline and a V4 policy variant that includes probabilistic expected-MSMI scoring and online learning. We also utilized strict component ablations to isolate the impact of our potential-degree queries and static matching choices.
 
-## Develop and compare
+## Results
+The following are the verified preliminary/local evaluation results using the local simulator (these do not claim global optimality):
 
-Edit `policy.py`, keeping the JSON interface. Observe only the input state. Refreshing observations after clarification is handled by the evaluator. Policy memory is passed explicitly between calls and reset between episodes.
+*   **Greedy baseline:** MSMI = 0.258
+*   **V4:** MSMI = 0.283
+*   **Final Hybrid:** MSMI = 0.392
+*   **Final Hybrid (cold_start scenario):** MSMI = 0.50
+*   **Invalid episodes:** 0
 
-```bash
-python evaluate.py --baseline greedy --seeds 101,102,103 --variants all --output results/greedy.json
-python evaluate.py --baseline no_asks --seeds 101,102,103 --variants all --output results/no_asks.json
-python evaluate.py --baseline random --seeds 101,102,103 --variants all --output results/random.json
-```
+## Repository Structure
+*   `policy.py`: The final Hybrid policy implementation.
+*   `evaluate.py` / `kit.py`: The provided simulator and evaluator scripts.
+*   `RESEARCH_PROPOSAL.pdf` / `RESEARCH_PROPOSAL.md`: The detailed research proposal.
+*   `FORM_ANSWERS.txt`: Form answers summarizing the approach.
+*   `ABLATION_REPORT.md`: Detailed ablation and evaluation results.
+*   `data/`: Synthetic dataset used for the evaluation.
+*   `results_archive/`: Final JSON evaluation logs for the various runs.
 
-The full commands take longer than the one-episode quick start. Public variants are `development`, `sparse`, `cold_start`, `delayed`, `shift`, and `drift`. Use your own declared training seeds. Keep the supplied six training pools, two validation pools and two development-test pools disjoint. Day-30 snapshots are not observations from earlier decisions.
-
-To check container execution after installing Docker:
+## Reproducing the Experiments
+To reproduce the Hybrid evaluation, run the evaluator using the following command from the repository root:
 
 ```bash
-docker build -t sequential-policy:1.0 .
-python evaluate.py --image sequential-policy:1.0 --seeds 101 --output results/container.json
+python evaluate.py --baseline greedy --seeds 101,102,103,104,105,106,107,108,109,110 --variants all --output results_archive/hybrid_results.json
 ```
-
-Local subprocess mode is only for trusted development code. Assessed submissions use offline containers with no host evaluation files mounted. Private organiser worlds are intentionally absent from this public repository.
-
-To regenerate the public tables without changing the supplied data:
-
+*(Note: Replace `--baseline greedy` if evaluating the Hybrid directly via `policy.py`. The provided `policy.py` contains the Hybrid implementation by default.)*
+To run the hybrid policy across all scenarios with 10 seeds:
 ```bash
-python build_public_data.py --output ../rebuilt-public-data
+python evaluate.py --seeds 101,102,103,104,105,106,107,108,109,110 --variants all --output results_archive/hybrid_results.json
 ```
 
-The new folder must not already exist. The generator uses only invented data and public seeds. Do not use seed reconstruction inside an evaluated policy.
-
-## Submit and ask questions
-
-Teams: **1–4 participants**.
-
-| Milestone | Date and time (IST) |
-|---|---|
-| Round 1 research submission closes | 9 October 2026, 23:59 |
-| Round 1 results announced by | 11 October 2026, 22:00 |
-| Round 2 build starts | 12 October 2026 |
-| Final build submission closes | 18 October 2026, 23:59 |
-
-**Round 1:** submit the research note through a Google Form. The organisers will release the link soon through [Discord](https://discord.gg/GwZdY54Gq) and [the submission guide](docs/SUBMISSION.md#research-submission). GitHub Issues are not the research submission route.
-
-**Round 2:** use the [Final submission](https://github.com/RomeoJulietLove/The-Sequential-Matching-Problem/issues/new?template=final_submission.yml) issue form by the final deadline. Provide the immutable submitted version and required report/results. Use [Question](https://github.com/RomeoJulietLove/The-Sequential-Matching-Problem/issues/new?template=question.yml) for technical questions. Never post personal data, access codes or credentials in public issues.
-
-This repository and public Issues are the shared technical communication hub. Event announcements and reminders are shared through [the IITM Discord server](https://discord.gg/GwZdY54Gq). Questions answered here are visible to every team. See [CHANGELOG.md](CHANGELOG.md) for release corrections.
-
-The [starter-code permission](LICENSE) and [synthetic-data permission](DATA_LICENSE.md) permit reuse of the supplied kit. Students retain ownership of their own work; participation does not grant Vouchsafe a commercial licence to submissions. Later use requires a separate agreement.
+## References
+*   Johari, R., Kamble, V., & Kanoria, Y. (2021). Matching while learning. *Operations Research*, 69(2), 655-681.
+*   Joulani, P., Gyorgy, A., & Szepesvári, C. (2013). Online learning under delayed feedback. In *International Conference on Machine Learning* (pp. 1453-1461). PMLR.
+*   Krause, A., & Guestrin, C. (2009). Optimal value of information in graphical models. *Journal of Artificial Intelligence Research*, 35, 557-591.

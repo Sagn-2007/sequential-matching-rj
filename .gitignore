@@ -1,6 +1,10 @@
 __pycache__/
 *.pyc
 .venv/
-results/
+venv/
 .env
 .env.*
+*.log
+.DS_Store
+
+results/
